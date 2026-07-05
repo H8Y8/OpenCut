@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://opencut.app/schemas/ai-edit-decision.v1.json",
+  "title": "OpenCut AI Edit Decision",
+  "type": "object",
+  "required": ["schema_version", "project", "assets", "timeline"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "opencut.ai-edit-decision.v1"
+    },
+    "project": {
+      "type": "object",
+      "required": ["title", "aspect_ratio", "target_duration_seconds", "language"],
+      "additionalProperties": false,
+      "properties": {
+        "title": {"type": "string", "minLength": 1},
+        "brief": {"type": "string"},
+        "platform": {"type": "string"},
+        "aspect_ratio": {"type": "string", "examples": ["9:16", "16:9", "1:1"]},
+        "target_duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "language": {"type": "string"},
+        "style": {"type": "array", "items": {"type": "string"}},
+        "assumptions": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/asset"}
+    },
+    "timeline": {
+      "type": "object",
+      "required": ["duration_seconds", "tracks"],
+      "additionalProperties": false,
+      "properties": {
+        "duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "fps": {"type": "number", "exclusiveMinimum": 0},
+        "width": {"type": "integer", "exclusiveMinimum": 0},
+        "height": {"type": "integer", "exclusiveMinimum": 0},
+        "tracks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/track"}
+        }
+      }
+    },
+    "subtitles": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/subtitle"}
+    },
+    "music": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mood": {"type": "array", "items": {"type": "string"}},
+        "tempo_bpm": {"type": "number", "exclusiveMinimum": 0},
+        "source_asset_path": {"type": "string"},
+        "licensing_note": {"type": "string"},
+        "ducking": {"type": "string"}
+      }
+    },
+    "rationale": {"type": "array", "items": {"type": "string"}},
+    "open_questions": {"type": "array", "items": {"type": "string"}}
+  },
+  "$defs": {
+    "asset": {
+      "type": "object",
+      "required": ["path", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "type": {"enum": ["video", "image", "audio", "subtitle", "generated"]},
+        "sha256": {"type": "string"},
+        "role": {"type": "string"},
+        "notes": {"type": "string"}
+      }
+    },
+    "track": {
+      "type": "object",
+      "required": ["id", "type", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "type": {"enum": ["video", "image", "audio", "subtitle", "overlay"]},
+        "items": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/timelineItem"}
+        }
+      }
+    },
+    "timelineItem": {
+      "type": "object",
+      "required": ["id", "asset_path", "start", "duration", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "asset_path": {"type": "string", "minLength": 1},
+        "start": {"type": "number", "minimum": 0},
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "source_in": {"type": "number", "minimum": 0},
+        "source_out": {"type": "number", "exclusiveMinimum": 0},
+        "rationale": {"type": "string", "minLength": 1},
+        "transform": {"$ref": "#/$defs/transform"},
+        "effects": {"type": "array", "items": {"$ref": "#/$defs/effect"}},
+        "transition_in": {"$ref": "#/$defs/transition"},
+        "transition_out": {"$ref": "#/$defs/transition"},
+        "keyframes": {"type": "array", "items": {"$ref": "#/$defs/keyframe"}},
+        "caption_ids": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scale": {"type": "number", "exclusiveMinimum": 0},
+        "x": {"type": "number"},
+        "y": {"type": "number"},
+        "rotation": {"type": "number"},
+        "crop": {"type": "string"}
+      }
+    },
+    "effect": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": true,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "intensity": {"type": "number"},
+        "parameters": {"type": "object"}
+      }
+    },
+    "transition": {
+      "type": "object",
+      "required": ["name", "duration"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "parameters": {"type": "object"}
+      }
+    },
+    "keyframe": {
+      "type": "object",
+      "required": ["time", "property", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "time": {"type": "number", "minimum": 0},
+        "property": {"type": "string", "minLength": 1},
+        "value": {},
+        "easing": {"type": "string"}
+      }
+    },
+    "subtitle": {
+      "type": "object",
+      "required": ["id", "start", "duration", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "start": {"type": "number", "minimum": 0},
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "text": {"type": "string", "minLength": 1},
+        "language": {"type": "string"},
+        "style": {"type": "string"}
+      }
+    }
+  }
+}

@@ -1,5 +1,10 @@
 node_modules/
 dist/
+.ai-edits/
+.next/
+next-env.d.ts
+__pycache__/
+*.pyc
 .env
 .env.*
 !.env.example

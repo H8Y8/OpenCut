@@ -1,10 +1,10 @@
 ---
 name: opencut-ai-video-editor
 description: Use this skill whenever the user wants an AI agent to analyze many videos, images, transcripts, or audio files and automatically plan or drive an OpenCut edit. Trigger for OpenCut automation, AI video editing, auto-cutting reels/shorts, edit-decision JSON, subtitles/translation/dubbing, BGM selection, transitions, keyframes, effects, MCP/headless OpenCut, or Claude/Codex video post-production workflows—even if the user only says “剪影片”, “自動剪輯”, or “幫我做成影片”.
-version: 0.2.0
+version: 0.3.0
 author: Hermes Agent
 license: MIT
-compatibility: Project skill for Claude Code / Agent Skills. Works today as a planning and edit-decision workflow; execution mode requires a future OpenCut Editor API, MCP server, plugin, or headless renderer.
+compatibility: Project skill for Claude Code / Agent Skills. Works today as a planning and edit-decision workflow with a local read-only MCP server for validating/summarizing edit-decision packages; rendering/import execution requires a future OpenCut Editor API, plugin, or headless renderer.
 ---
 
 # OpenCut AI Video Editor Skill
@@ -19,11 +19,12 @@ This skill follows the workflow implied by the Threads post the user referenced:
 
 As of this skill version, the local `main` branch is the rewrite scaffold, not a usable editor automation surface:
 
-- `README.md` lists Editor API, plugins, MCP server, headless mode, and scripting tab as planned rewrite goals.
+- `README.md` lists Editor API, plugins, headless mode, and scripting tab as planned rewrite goals.
+- `apps/mcp` provides a local stdio MCP server for read-only package validation and summaries: `opencut_get_capabilities`, `opencut_validate_edit_decision`, and `opencut_summarize_edit_decision`.
 - `apps/web/src/routes/index.tsx` currently renders only `hello world!`; there is no checked-in timeline/editor/export implementation to call.
 - `apps/api/src/index.ts` exposes only `/`, `/health`, and `/echo` routes.
 
-Therefore default to `plan-only` unless a future checkout adds an actual OpenCut MCP/API/plugin/headless renderer. Do not invent OpenCut APIs.
+Therefore default to `plan-only` unless a future checkout adds an actual OpenCut editor API/plugin/headless renderer. The current MCP server can validate and summarize edit packages, but it cannot import/render them. Do not invent OpenCut APIs.
 
 ## Non-Negotiables
 
@@ -149,6 +150,7 @@ Completion criterion: each layer is either represented in `edit-decision.json` o
 Before applying, discover whether the local OpenCut checkout has any of these:
 
 - MCP server for editor control.
+- Read-only MCP tools under `apps/mcp` for validation/summarization (use them when available, but do not treat them as render/import proof).
 - Editor API / plugin API.
 - Headless renderer.
 - Import format matching `edit-decision.json` or a convertible timeline schema.
@@ -170,6 +172,8 @@ python3 .claude/skills/opencut-ai-video-editor/scripts/validate_edit_decision.py
   --inventory .ai-edits/<project-slug>/media-inventory.json
 python3 .claude/skills/opencut-ai-video-editor/tests/test_media_inventory.py
 python3 .claude/skills/opencut-ai-video-editor/tests/test_validate_edit_decision.py
+(cd apps/mcp && bun run test)
+(cd apps/mcp && bun run build)
 ```
 
 Manual checks:
@@ -201,3 +205,4 @@ Verification: <commands run + result>
 - `templates/edit-decision.example.json` — small example plan.
 - `scripts/media_inventory.py` — deterministic media inventory helper.
 - `scripts/validate_edit_decision.py` — no-dependency structural validator for edit packages.
+- `apps/mcp/README.md` — local stdio MCP server usage and client configuration.

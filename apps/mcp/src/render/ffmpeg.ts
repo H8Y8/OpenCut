@@ -119,11 +119,64 @@ export function buildFfmpegRenderPlan(
   const concatFilePath = join(workDir, "concat.txt");
   const concatFileContent =
     steps.map((step) => `file '${step.outputPath.replaceAll("'", "'\\''")}'`).join("\n") + "\n";
+  const audioItems = explicitAudioItems(timeline);
+  const visualConcatPath = audioItems.length > 0 ? join(workDir, "visual-concat.mp4") : outputPath;
   steps.push({
     command: "ffmpeg",
-    outputPath,
-    args: ["-y", "-f", "concat", "-safe", "0", "-i", concatFilePath, "-c", "copy", outputPath],
+    outputPath: visualConcatPath,
+    args: ["-y", "-f", "concat", "-safe", "0", "-i", concatFilePath, "-c", "copy", visualConcatPath],
   });
+
+  const audioSegmentPaths = audioItems.map((item, index) => {
+    const audioPath = join(workDir, `audio-${String(index).padStart(3, "0")}.m4a`);
+    const inputPath = resolve(mediaRoot, item.assetPath);
+    assertInside(mediaRoot, inputPath, `asset path escapes mediaRoot: ${item.assetPath}`);
+    steps.push({
+      command: "ffmpeg",
+      outputPath: audioPath,
+      args: [
+        "-y",
+        "-ss",
+        formatSeconds(item.sourceIn),
+        "-t",
+        formatSeconds(item.duration),
+        "-i",
+        inputPath,
+        "-vn",
+        "-af",
+        audioTimelineFilter(item, timeline.durationSeconds),
+        "-c:a",
+        "aac",
+        audioPath,
+      ],
+    });
+    return audioPath;
+  });
+
+  if (audioSegmentPaths.length > 0) {
+    steps.push({
+      command: "ffmpeg",
+      outputPath,
+      args: [
+        "-y",
+        "-i",
+        visualConcatPath,
+        ...audioSegmentPaths.flatMap((path) => ["-i", path]),
+        "-filter_complex",
+        audioMixFilter(audioSegmentPaths.length + 1),
+        "-map",
+        "0:v:0",
+        "-map",
+        "[aout]",
+        "-c:v",
+        "copy",
+        "-c:a",
+        "aac",
+        "-shortest",
+        outputPath,
+      ],
+    });
+  }
 
   return { concatFilePath, concatFileContent, outputPath, steps };
 }
@@ -151,6 +204,25 @@ export async function renderTimelineWithFfmpeg(
 function primaryVisualItems(timeline: ImportedTimeline): ImportedTimelineItem[] {
   const track = timeline.tracks.find((candidate) => candidate.type === "video" || candidate.type === "image");
   return track?.items.filter((item) => item.assetType === "video" || item.assetType === "image") ?? [];
+}
+
+function explicitAudioItems(timeline: ImportedTimeline): ImportedTimelineItem[] {
+  return timeline.tracks
+    .filter((track) => track.type === "audio")
+    .flatMap((track) => track.items)
+    .filter((item) => item.assetType === "audio" || item.assetType === "video")
+    .sort((left, right) => left.start - right.start || left.id.localeCompare(right.id));
+}
+
+function audioTimelineFilter(item: ImportedTimelineItem, timelineDuration: number): string {
+  return [`adelay=${Math.round(item.start * 1000)}:all=1`, "apad", `atrim=0:${formatSeconds(timelineDuration)}`].join(
+    ",",
+  );
+}
+
+function audioMixFilter(inputCount: number): string {
+  const inputs = Array.from({ length: inputCount }, (_, index) => `[${index}:a:0]`).join("");
+  return `${inputs}amix=inputs=${inputCount}:duration=first:dropout_transition=0[aout]`;
 }
 
 function shouldUseSourceAudio(item: ImportedTimelineItem, options: FfmpegRenderOptions): boolean {

@@ -50,6 +50,35 @@ function timeline(): ImportedTimeline {
   };
 }
 
+function timelineWithAudioTrack(): ImportedTimeline {
+  const base = timeline();
+  return {
+    ...base,
+    assets: [...base.assets, { path: "media/music.wav", type: "audio" }],
+    tracks: [
+      ...base.tracks,
+      {
+        id: "a1",
+        type: "audio",
+        items: [
+          {
+            id: "music",
+            trackId: "a1",
+            trackType: "audio",
+            assetPath: "media/music.wav",
+            assetType: "audio",
+            start: 0.5,
+            duration: 1.5,
+            sourceIn: 2,
+            sourceOut: 3.5,
+            rationale: "Music bed.",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("buildFfmpegRenderPlan", () => {
   it("builds segment commands and a concat command without shell interpolation", () => {
     const plan = buildFfmpegRenderPlan(timeline(), {
@@ -88,6 +117,41 @@ describe("buildFfmpegRenderPlan", () => {
 
     expect(plan.steps[0].args).toEqual(expect.arrayContaining(["-map", "1:a:0"]));
     expect(plan.steps[0].args).toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
+  });
+
+  it("mixes explicit audio track items into the final output timeline", () => {
+    const plan = buildFfmpegRenderPlan(timelineWithAudioTrack(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+
+    expect(plan.steps).toHaveLength(5);
+    expect(plan.steps[2]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/visual-concat.mp4",
+    });
+    expect(plan.steps[3]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/audio-000.m4a",
+    });
+    expect(plan.steps[3].args).toEqual(expect.arrayContaining(["-ss", "2", "-t", "1.5"]));
+    expect(plan.steps[3].args).toContain("/tmp/project/media/music.wav");
+    expect(plan.steps[3].args).toEqual(expect.arrayContaining(["-af", "adelay=500:all=1,apad,atrim=0:2"]));
+    expect(plan.steps[4]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+    expect(plan.steps[4].args).toEqual(
+      expect.arrayContaining([
+        "-filter_complex",
+        "[0:a:0][1:a:0]amix=inputs=2:duration=first:dropout_transition=0[aout]",
+        "-map",
+        "0:v:0",
+        "-map",
+        "[aout]",
+      ]),
+    );
   });
 
   it("probes video assets before rendering so missing audio falls back to silence", async () => {

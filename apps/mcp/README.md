@@ -6,6 +6,8 @@ This server is intentionally conservative while the OpenCut rewrite is still bui
 
 The export tool is an initial local `ffmpeg` adapter for edit-decision timelines. It is not proof of native OpenCut editor import or native OpenCut headless rendering.
 
+The adapter renders hard-cut video/image timelines, preserves source audio from video clips when available, and mixes explicit `audio` track items into the final export. Video clips without audio and image clips receive silent fallback audio so concatenation remains deterministic.
+
 ## Tools
 
 - `opencut_get_capabilities` — returns the current automation capabilities and caveats.

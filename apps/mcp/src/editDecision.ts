@@ -110,7 +110,7 @@ export function getOpenCutMcpCapabilities(): OpenCutMcpCapabilities {
       pluginApi: false,
       headlessRender: false,
       editDecisionTimelineImport: true,
-      mcpEditorControl: false,
+      mcpEditorControl: true,
       ffmpegRenderAdapter: false,
     },
     caveats: [

@@ -14,6 +14,7 @@ export const OPENCUT_MCP_TOOL_NAMES = [
   "opencut_get_timeline_state",
   "opencut_select_timeline_item",
   "opencut_update_timeline_item_timing",
+  "opencut_export_timeline",
 ] as const;
 
 type OpenCutMcpToolHandlers = ReturnType<typeof createOpenCutMcpToolHandlers>;
@@ -26,6 +27,7 @@ const mediaInventoryPathSchema = z
   .describe("Optional path to a media-inventory JSON file for source asset checks.");
 const itemIdSchema = z.string().min(1).describe("Timeline item id.");
 const optionalNumberSchema = z.number().finite().optional();
+const filesystemPathSchema = z.string().min(1);
 
 export function createOpenCutMcpServer(handlers = createOpenCutMcpToolHandlers()): McpServer {
   const server = new McpServer({
@@ -178,6 +180,31 @@ export function registerOpenCutMcpTools(
         duration: typeof args.duration === "number" ? args.duration : undefined,
         sourceIn: typeof args.sourceIn === "number" ? args.sourceIn : undefined,
         sourceOut: typeof args.sourceOut === "number" ? args.sourceOut : undefined,
+      }),
+  );
+
+  server.registerTool(
+    "opencut_export_timeline",
+    {
+      title: "Export OpenCut timeline",
+      description: "Render the loaded edit-decision timeline through the local ffmpeg adapter.",
+      inputSchema: {
+        mediaRoot: filesystemPathSchema.describe("Root folder used to resolve relative asset paths."),
+        workDir: filesystemPathSchema.describe("Temporary render work directory."),
+        outputPath: filesystemPathSchema.describe("Final mp4 output path."),
+        dryRun: z.boolean().optional().describe("Return the ffmpeg command plan without running ffmpeg."),
+      },
+      annotations: {
+        readOnlyHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args) =>
+      handlers.exportTimeline({
+        mediaRoot: String(args.mediaRoot),
+        workDir: String(args.workDir),
+        outputPath: String(args.outputPath),
+        dryRun: typeof args.dryRun === "boolean" ? args.dryRun : undefined,
       }),
   );
 }

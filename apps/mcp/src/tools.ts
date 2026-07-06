@@ -6,6 +6,7 @@ import {
   validateEditDecision,
 } from "./editDecision";
 import { OpenCutEditorSession, summarizeTimelineState } from "./editorSession";
+import { buildFfmpegRenderPlan, renderTimelineWithFfmpeg } from "./render/ffmpeg";
 import { importTimeline as importEditDecisionTimeline } from "./timelineImport";
 
 type TextContent = {
@@ -42,6 +43,13 @@ type UpdateTimelineItemTimingInput = {
   duration?: number;
   sourceIn?: number;
   sourceOut?: number;
+};
+
+type ExportTimelineInput = {
+  mediaRoot: string;
+  workDir: string;
+  outputPath: string;
+  dryRun?: boolean;
 };
 
 export function createOpenCutMcpToolHandlers(deps: ToolHandlerDeps = {}) {
@@ -89,6 +97,30 @@ export function createOpenCutMcpToolHandlers(deps: ToolHandlerDeps = {}) {
 
     async updateTimelineItemTiming(input: UpdateTimelineItemTimingInput): Promise<McpTextResponse> {
       return jsonResponse(editorSession.updateItemTiming(input.itemId, input));
+    },
+
+    async exportTimeline(input: ExportTimelineInput): Promise<McpTextResponse> {
+      const state = editorSession.getState();
+      if (!state.loaded) {
+        throw new Error("no timeline is loaded");
+      }
+      if (input.dryRun === true) {
+        const plan = buildFfmpegRenderPlan(state.timeline, input);
+        const response = jsonResponse({
+          dryRun: true,
+          outputPath: plan.outputPath,
+          commandCount: plan.steps.length,
+          commands: plan.steps.map((step) => ({ command: step.command, args: step.args })),
+        });
+        response.content[0].text = `ffmpeg command plan\n${response.content[0].text}`;
+        return response;
+      }
+      const result = await renderTimelineWithFfmpeg(state.timeline, input);
+      return jsonResponse({
+        dryRun: false,
+        outputPath: result.outputPath,
+        commandCount: result.commandCount,
+      });
     },
   };
 }

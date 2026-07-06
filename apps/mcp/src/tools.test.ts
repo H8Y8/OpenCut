@@ -140,4 +140,36 @@ describe("createOpenCutMcpToolHandlers", () => {
     };
     expect(payload.timeline.tracks[0].items[0]).toMatchObject({ id: "hook", start: 1, duration: 5 });
   });
+
+  it("dry-runs export for the currently loaded timeline", async () => {
+    const root = await mkdtemp(join(tmpdir(), "opencut-mcp-"));
+    const editDecisionPath = await writeJson(root, "edit-decision.json", validEditDecision());
+    const handlers = createOpenCutMcpToolHandlers();
+    await handlers.importTimeline({ editDecisionPath });
+
+    const response = await handlers.exportTimeline({
+      mediaRoot: root,
+      workDir: join(root, ".ai-edits", "render-work"),
+      outputPath: join(root, ".ai-edits", "preview", "output.mp4"),
+      dryRun: true,
+    });
+
+    expect(response.structuredContent).toMatchObject({
+      outputPath: join(root, ".ai-edits", "preview", "output.mp4"),
+      dryRun: true,
+    });
+    expect(response.content[0].text).toContain("ffmpeg command plan");
+  });
+
+  it("rejects export when no timeline is loaded", async () => {
+    const handlers = createOpenCutMcpToolHandlers();
+
+    await expect(
+      handlers.exportTimeline({
+        mediaRoot: "/tmp/project",
+        workDir: "/tmp/project/.ai-edits/render-work",
+        outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      }),
+    ).rejects.toThrow("no timeline is loaded");
+  });
 });

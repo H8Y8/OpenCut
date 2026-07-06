@@ -107,18 +107,19 @@ export function getOpenCutMcpCapabilities(): OpenCutMcpCapabilities {
       "opencut_get_timeline_state",
       "opencut_select_timeline_item",
       "opencut_update_timeline_item_timing",
+      "opencut_export_timeline",
     ],
     execution: {
       openCutNativeImport: false,
       editorApi: false,
       pluginApi: false,
-      headlessRender: false,
+      headlessRender: true,
       editDecisionTimelineImport: true,
       mcpEditorControl: true,
       ffmpegRenderAdapter: true,
     },
     caveats: [
-      "This server validates and summarizes AI edit-decision packages; it does not render video until OpenCut exposes a real editor API, plugin API, MCP surface, or headless renderer.",
+      "This server can import, control, and ffmpeg-render edit-decision timelines. Native OpenCut editor import/render remains unavailable until OpenCut exposes a real editor API, plugin API, MCP surface, or headless renderer.",
     ],
   };
 }

@@ -132,10 +132,13 @@ describe("getOpenCutMcpCapabilities", () => {
     const capabilities = getOpenCutMcpCapabilities();
 
     expect(capabilities.execution.openCutNativeImport).toBe(false);
-    expect(capabilities.execution.headlessRender).toBe(false);
+    expect(capabilities.execution.editorApi).toBe(false);
+    expect(capabilities.execution.pluginApi).toBe(false);
+    expect(capabilities.execution.headlessRender).toBe(true);
+    expect(capabilities.execution.ffmpegRenderAdapter).toBe(true);
     expect(capabilities.artifacts).toContain("edit-decision.json");
     expect(capabilities.caveats).toContain(
-      "This server validates and summarizes AI edit-decision packages; it does not render video until OpenCut exposes a real editor API, plugin API, MCP surface, or headless renderer.",
+      "This server can import, control, and ffmpeg-render edit-decision timelines. Native OpenCut editor import/render remains unavailable until OpenCut exposes a real editor API, plugin API, MCP surface, or headless renderer.",
     );
   });
 });

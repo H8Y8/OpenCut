@@ -18,6 +18,7 @@ describe("registerOpenCutMcpTools", () => {
       "opencut_get_timeline_state",
       "opencut_select_timeline_item",
       "opencut_update_timeline_item_timing",
+      "opencut_export_timeline",
     ]);
   });
 
@@ -33,6 +34,7 @@ describe("registerOpenCutMcpTools", () => {
       getTimelineState: vi.fn(async () => textResponse),
       selectTimelineItem: vi.fn(async () => textResponse),
       updateTimelineItemTiming: vi.fn(async () => textResponse),
+      exportTimeline: vi.fn(async () => textResponse),
     });
 
     expect(registerTool.mock.calls.map((call) => call[0])).toEqual(OPENCUT_MCP_TOOL_NAMES);

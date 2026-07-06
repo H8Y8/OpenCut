@@ -124,6 +124,22 @@ describe("OpenCut MCP stdio server", () => {
         loaded: true,
         projectTitle: "Client smoke test",
       });
+
+      const exportPlan = (await client.callTool({
+        name: "opencut_export_timeline",
+        arguments: {
+          mediaRoot: root,
+          workDir: join(root, ".ai-edits", "render-work"),
+          outputPath: join(root, ".ai-edits", "preview", "output.mp4"),
+          dryRun: true,
+        },
+      })) as {
+        structuredContent?: Record<string, unknown>;
+      };
+      expect(exportPlan.structuredContent).toMatchObject({
+        dryRun: true,
+        outputPath: join(root, ".ai-edits", "preview", "output.mp4"),
+      });
     } finally {
       await client.close();
     }

@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 import type { ImportedTimeline, ImportedTimelineItem, ImportedTimelineSubtitle } from "../timelineImport";
 
 const execFile = promisify(execFileCallback);
+const RENDER_MANIFEST_SCHEMA_VERSION = "opencut.ffmpeg-render-manifest.v1";
 
 export type FfmpegCommandStep = {
   command: "ffmpeg";
@@ -18,6 +19,7 @@ export type FfmpegRenderPlan = {
   concatFileContent: string;
   subtitleFilePath?: string;
   subtitleFileContent?: string;
+  manifestPath: string;
   outputPath: string;
   steps: FfmpegCommandStep[];
 };
@@ -26,12 +28,14 @@ export type FfmpegRenderOptions = {
   mediaRoot: string;
   workDir: string;
   outputPath: string;
+  manifestPath?: string;
   preserveSourceAudio?: boolean;
   sourceAudioByAssetPath?: Record<string, boolean>;
 };
 
 export type FfmpegRenderResult = {
   outputPath: string;
+  manifestPath: string;
   commandCount: number;
 };
 
@@ -55,8 +59,10 @@ export function buildFfmpegRenderPlan(
   const mediaRoot = resolve(options.mediaRoot);
   const workDir = resolve(options.workDir);
   const outputPath = resolve(options.outputPath);
+  const manifestPath = resolve(options.manifestPath ?? defaultManifestPath(outputPath));
   assertInside(mediaRoot, workDir, "workDir must stay within mediaRoot or .ai-edits");
   assertInside(mediaRoot, outputPath, "outputPath must stay within mediaRoot or .ai-edits");
+  assertInside(mediaRoot, manifestPath, "manifestPath must stay within mediaRoot or .ai-edits");
 
   const visualItems = primaryVisualItems(timeline);
   if (visualItems.length === 0) {
@@ -210,7 +216,7 @@ export function buildFfmpegRenderPlan(
     });
   }
 
-  return { concatFilePath, concatFileContent, subtitleFilePath, subtitleFileContent, outputPath, steps };
+  return { concatFilePath, concatFileContent, subtitleFilePath, subtitleFileContent, manifestPath, outputPath, steps };
 }
 
 export async function renderTimelineWithFfmpeg(
@@ -226,6 +232,7 @@ export async function renderTimelineWithFfmpeg(
 
   await makeDir(options.workDir, { recursive: true });
   await makeDir(dirname(options.outputPath), { recursive: true });
+  await makeDir(dirname(plan.manifestPath), { recursive: true });
   await writeText(plan.concatFilePath, plan.concatFileContent, "utf8");
   if (plan.subtitleFilePath !== undefined && plan.subtitleFileContent !== undefined) {
     await writeText(plan.subtitleFilePath, plan.subtitleFileContent, "utf8");
@@ -233,7 +240,8 @@ export async function renderTimelineWithFfmpeg(
   for (const step of plan.steps) {
     await run(step.command, step.args);
   }
-  return { outputPath: plan.outputPath, commandCount: plan.steps.length };
+  await writeText(plan.manifestPath, buildRenderManifest(plan, options), "utf8");
+  return { outputPath: plan.outputPath, manifestPath: plan.manifestPath, commandCount: plan.steps.length };
 }
 
 function primaryVisualItems(timeline: ImportedTimeline): ImportedTimelineItem[] {
@@ -308,6 +316,33 @@ function audioTimelineFilter(item: ImportedTimelineItem, timelineDuration: numbe
 function audioMixFilter(inputCount: number): string {
   const inputs = Array.from({ length: inputCount }, (_, index) => `[${index}:a:0]`).join("");
   return `${inputs}amix=inputs=${inputCount}:duration=first:dropout_transition=0[aout]`;
+}
+
+function defaultManifestPath(outputPath: string): string {
+  return join(dirname(outputPath), "..", "manifests", "render-manifest.json");
+}
+
+function buildRenderManifest(plan: FfmpegRenderPlan, options: FfmpegRenderOptions): string {
+  const manifest = {
+    schemaVersion: RENDER_MANIFEST_SCHEMA_VERSION,
+    renderer: "ffmpeg",
+    mediaRoot: resolve(options.mediaRoot),
+    workDir: resolve(options.workDir),
+    outputPath: plan.outputPath,
+    commandCount: plan.steps.length,
+    generatedFiles: {
+      concatFilePath: plan.concatFilePath,
+      subtitleFilePath: plan.subtitleFilePath,
+    },
+    commands: plan.steps.map((step, index) => ({
+      index,
+      command: step.command,
+      args: step.args,
+      outputPath: step.outputPath,
+    })),
+  };
+
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
 function shouldUseSourceAudio(item: ImportedTimelineItem, options: FfmpegRenderOptions): boolean {

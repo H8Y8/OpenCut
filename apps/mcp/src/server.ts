@@ -192,6 +192,7 @@ export function registerOpenCutMcpTools(
         mediaRoot: filesystemPathSchema.describe("Root folder used to resolve relative asset paths."),
         workDir: filesystemPathSchema.describe("Temporary render work directory."),
         outputPath: filesystemPathSchema.describe("Final mp4 output path."),
+        manifestPath: filesystemPathSchema.optional().describe("Optional render manifest JSON output path."),
         dryRun: z.boolean().optional().describe("Return the ffmpeg command plan without running ffmpeg."),
       },
       annotations: {
@@ -204,6 +205,7 @@ export function registerOpenCutMcpTools(
         mediaRoot: String(args.mediaRoot),
         workDir: String(args.workDir),
         outputPath: String(args.outputPath),
+        manifestPath: typeof args.manifestPath === "string" ? args.manifestPath : undefined,
         dryRun: typeof args.dryRun === "boolean" ? args.dryRun : undefined,
       }),
   );

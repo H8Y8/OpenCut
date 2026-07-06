@@ -49,6 +49,7 @@ type ExportTimelineInput = {
   mediaRoot: string;
   workDir: string;
   outputPath: string;
+  manifestPath?: string;
   dryRun?: boolean;
 };
 
@@ -109,6 +110,7 @@ export function createOpenCutMcpToolHandlers(deps: ToolHandlerDeps = {}) {
         const response = jsonResponse({
           dryRun: true,
           outputPath: plan.outputPath,
+          manifestPath: plan.manifestPath,
           commandCount: plan.steps.length,
           commands: plan.steps.map((step) => ({ command: step.command, args: step.args })),
         });
@@ -119,6 +121,7 @@ export function createOpenCutMcpToolHandlers(deps: ToolHandlerDeps = {}) {
       return jsonResponse({
         dryRun: false,
         outputPath: result.outputPath,
+        manifestPath: result.manifestPath,
         commandCount: result.commandCount,
       });
     },

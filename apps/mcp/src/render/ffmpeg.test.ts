@@ -274,11 +274,54 @@ describe("buildFfmpegRenderPlan", () => {
       },
     });
 
-    expect(writes.map((write) => write.path)).toEqual([
+    expect(writes.map((write) => write.path).slice(0, 2)).toEqual([
       "/tmp/project/.ai-edits/render-work/concat.txt",
       "/tmp/project/.ai-edits/render-work/subtitles.srt",
     ]);
     expect(writes[1].content).toContain("00:00:00,500 --> 00:00:01,500");
+  });
+
+  it("writes a render manifest after successful command execution", async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+    const writes: Array<{ path: string; content: string }> = [];
+
+    const result = await renderTimelineWithFfmpeg(timelineWithSubtitles(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      sourceAudioByAssetPath: {
+        "media/a.mp4": false,
+      },
+      execFile: async (command, args) => {
+        calls.push({ command, args });
+        return {};
+      },
+      mkdir: async () => {},
+      writeFile: async (path, content) => {
+        writes.push({ path, content });
+      },
+    });
+
+    expect(result).toMatchObject({
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      manifestPath: "/tmp/project/.ai-edits/manifests/render-manifest.json",
+    });
+    expect(writes.at(-1)?.path).toBe("/tmp/project/.ai-edits/manifests/render-manifest.json");
+    const manifest = JSON.parse(writes.at(-1)?.content ?? "{}");
+    expect(manifest).toMatchObject({
+      schemaVersion: "opencut.ffmpeg-render-manifest.v1",
+      renderer: "ffmpeg",
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      commandCount: 4,
+      generatedFiles: {
+        concatFilePath: "/tmp/project/.ai-edits/render-work/concat.txt",
+        subtitleFilePath: "/tmp/project/.ai-edits/render-work/subtitles.srt",
+      },
+    });
+    expect(manifest.commands).toHaveLength(calls.length);
+    expect(manifest.commands[0]).toMatchObject({ index: 0, command: "ffmpeg" });
   });
 
   it("rejects timelines without a visual video or image track", () => {

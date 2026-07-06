@@ -156,6 +156,7 @@ describe("createOpenCutMcpToolHandlers", () => {
 
     expect(response.structuredContent).toMatchObject({
       outputPath: join(root, ".ai-edits", "preview", "output.mp4"),
+      manifestPath: join(root, ".ai-edits", "manifests", "render-manifest.json"),
       dryRun: true,
     });
     expect(response.content[0].text).toContain("ffmpeg command plan");

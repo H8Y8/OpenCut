@@ -10,6 +10,7 @@ export type ExportTimelineCliArgs = {
   mediaRoot: string;
   workDir: string;
   outputPath: string;
+  manifestPath?: string;
   dryRun: boolean;
 };
 
@@ -34,6 +35,7 @@ export function parseExportTimelineCliArgs(args: string[]): ExportTimelineCliArg
   let mediaInventoryPath: string | undefined;
   let mediaRoot: string | undefined;
   let outputPath: string | undefined;
+  let manifestPath: string | undefined;
   let workDir: string | undefined;
   let dryRun = false;
 
@@ -54,6 +56,11 @@ export function parseExportTimelineCliArgs(args: string[]): ExportTimelineCliArg
     }
     if (arg === "--out") {
       outputPath = requireValue(args, index, arg);
+      index += 1;
+      continue;
+    }
+    if (arg === "--manifest") {
+      manifestPath = requireValue(args, index, arg);
       index += 1;
       continue;
     }
@@ -85,6 +92,7 @@ export function parseExportTimelineCliArgs(args: string[]): ExportTimelineCliArg
     mediaRoot,
     outputPath,
     workDir: workDir ?? join(dirname(outputPath), "..", "render-work"),
+    manifestPath,
     dryRun,
   };
 }
@@ -105,6 +113,7 @@ export async function runExportTimelineCli(
     mediaRoot: parsed.mediaRoot,
     workDir: parsed.workDir,
     outputPath: parsed.outputPath,
+    manifestPath: parsed.manifestPath,
     dryRun: parsed.dryRun,
   });
 

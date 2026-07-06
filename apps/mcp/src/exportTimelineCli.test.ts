@@ -21,6 +21,8 @@ describe("parseExportTimelineCliArgs", () => {
         "project/preview/output.mp4",
         "--work-dir",
         "project/render-work",
+        "--manifest",
+        "project/manifests/render.json",
         "--dry-run",
       ]),
     ).toEqual({
@@ -29,6 +31,7 @@ describe("parseExportTimelineCliArgs", () => {
       mediaRoot: "project",
       outputPath: "project/preview/output.mp4",
       workDir: "project/render-work",
+      manifestPath: "project/manifests/render.json",
       dryRun: true,
     });
   });
@@ -97,6 +100,7 @@ describe("runExportTimelineCli", () => {
           mediaRoot: "project",
           workDir: "project/render-work",
           outputPath: "project/preview/output.mp4",
+          manifestPath: undefined,
           dryRun: true,
         },
       },

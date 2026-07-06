@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { execFile as execFileCallback } from "node:child_process";
-import { access, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { promisify } from "node:util";
@@ -233,6 +233,7 @@ describe("OpenCut MCP stdio server", () => {
       stderr: "pipe",
     });
     const outputPath = join(root, ".ai-edits", "preview", "output.mp4");
+    const manifestPath = join(root, ".ai-edits", "manifests", "render-manifest.json");
 
     await client.connect(transport);
     try {
@@ -254,9 +255,18 @@ describe("OpenCut MCP stdio server", () => {
       expect(exported.structuredContent).toMatchObject({
         dryRun: false,
         outputPath,
+        manifestPath,
       });
       await access(outputPath);
       expect((await stat(outputPath)).size).toBeGreaterThan(0);
+      await access(manifestPath);
+      const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+      expect(manifest).toMatchObject({
+        schemaVersion: "opencut.ffmpeg-render-manifest.v1",
+        renderer: "ffmpeg",
+        outputPath,
+      });
+      expect(manifest.commands.length).toBeGreaterThan(0);
     } finally {
       await client.close();
     }

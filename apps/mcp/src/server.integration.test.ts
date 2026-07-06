@@ -1,7 +1,9 @@
 import { fileURLToPath } from "node:url";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { execFile as execFileCallback } from "node:child_process";
+import { access, mkdtemp, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { promisify } from "node:util";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { describe, expect, it } from "vitest";
@@ -9,6 +11,17 @@ import { describe, expect, it } from "vitest";
 import { OPENCUT_MCP_TOOL_NAMES } from "./server";
 
 const appRoot = fileURLToPath(new URL("..", import.meta.url));
+const execFile = promisify(execFileCallback);
+
+async function hasFfmpeg(): Promise<boolean> {
+  try {
+    await execFile("ffmpeg", ["-version"]);
+    await execFile("ffprobe", ["-version"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 describe("OpenCut MCP stdio server", () => {
   it("lists tools and calls opencut_get_capabilities through a real MCP client", async () => {
@@ -140,6 +153,110 @@ describe("OpenCut MCP stdio server", () => {
         dryRun: true,
         outputPath: join(root, ".ai-edits", "preview", "output.mp4"),
       });
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("exports a loaded timeline through stdio when ffmpeg is installed", async () => {
+    if (!(await hasFfmpeg())) {
+      console.warn("Skipping stdio export render because ffmpeg or ffprobe is not installed.");
+      return;
+    }
+
+    const root = await mkdtemp(join(tmpdir(), "opencut-mcp-export-"));
+    const mediaPath = join(root, "clip.mp4");
+    await execFile("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=green:s=320x180:d=1",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=1",
+      "-shortest",
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      mediaPath,
+    ]);
+
+    const editDecisionPath = join(root, "edit-decision.json");
+    await writeFile(
+      editDecisionPath,
+      JSON.stringify({
+        schema_version: "opencut.ai-edit-decision.v1",
+        project: {
+          title: "Client export smoke test",
+          aspect_ratio: "16:9",
+          target_duration_seconds: 1,
+          language: "zh-TW",
+        },
+        assets: [{ path: "clip.mp4", type: "video" }],
+        timeline: {
+          duration_seconds: 1,
+          fps: 24,
+          width: 320,
+          height: 180,
+          tracks: [
+            {
+              id: "v1",
+              type: "video",
+              items: [
+                {
+                  id: "clip-1",
+                  asset_path: "clip.mp4",
+                  start: 0,
+                  duration: 1,
+                  source_in: 0,
+                  source_out: 1,
+                  rationale: "Stdio export smoke-test clip.",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+      "utf8",
+    );
+
+    const client = new Client({ name: "opencut-mcp-export-test-client", version: "0.0.0" });
+    const transport = new StdioClientTransport({
+      command: "bun",
+      args: ["run", "src/server.ts"],
+      cwd: appRoot,
+      stderr: "pipe",
+    });
+    const outputPath = join(root, ".ai-edits", "preview", "output.mp4");
+
+    await client.connect(transport);
+    try {
+      await client.callTool({
+        name: "opencut_import_timeline",
+        arguments: { editDecisionPath },
+      });
+      const exported = (await client.callTool({
+        name: "opencut_export_timeline",
+        arguments: {
+          mediaRoot: root,
+          workDir: join(root, ".ai-edits", "render-work"),
+          outputPath,
+        },
+      })) as {
+        structuredContent?: Record<string, unknown>;
+      };
+
+      expect(exported.structuredContent).toMatchObject({
+        dryRun: false,
+        outputPath,
+      });
+      await access(outputPath);
+      expect((await stat(outputPath)).size).toBeGreaterThan(0);
     } finally {
       await client.close();
     }

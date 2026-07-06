@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FfmpegRenderError, buildFfmpegRenderPlan } from "./ffmpeg";
+import { FfmpegRenderError, buildFfmpegRenderPlan, renderTimelineWithFfmpeg } from "./ffmpeg";
 import type { ImportedTimeline } from "../timelineImport";
 
 function timeline(): ImportedTimeline {
@@ -66,10 +66,55 @@ describe("buildFfmpegRenderPlan", () => {
     expect(plan.steps[0].args).toContain("/tmp/project/media/a.mp4");
     expect(plan.steps[0].args).toContain("-ss");
     expect(plan.steps[0].args).toContain("0.5");
+    expect(plan.steps[0].args).toEqual(expect.arrayContaining(["-map", "0:a:0"]));
+    expect(plan.steps[0].args).not.toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
     expect(plan.steps[1].args).toContain("-loop");
+    expect(plan.steps[1].args).toEqual(expect.arrayContaining(["-map", "1:a:0"]));
+    expect(plan.steps[1].args).toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
     expect(plan.steps[2].args).toEqual(expect.arrayContaining(["-f", "concat", "-safe", "0"]));
     expect(plan.concatFilePath).toBe("/tmp/project/.ai-edits/render-work/concat.txt");
     expect(plan.outputPath).toBe("/tmp/project/.ai-edits/preview/output.mp4");
+  });
+
+  it("uses silent fallback audio for video assets known to have no source audio", () => {
+    const plan = buildFfmpegRenderPlan(timeline(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      sourceAudioByAssetPath: {
+        "media/a.mp4": false,
+      },
+    });
+
+    expect(plan.steps[0].args).toEqual(expect.arrayContaining(["-map", "1:a:0"]));
+    expect(plan.steps[0].args).toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
+  });
+
+  it("probes video assets before rendering so missing audio falls back to silence", async () => {
+    const calls: Array<{ command: string; args: string[] }> = [];
+
+    await renderTimelineWithFfmpeg(timeline(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      execFile: async (command, args) => {
+        calls.push({ command, args });
+        if (command === "ffprobe") {
+          return { stdout: "" };
+        }
+        return {};
+      },
+      mkdir: async () => {},
+      writeFile: async () => {},
+    });
+
+    expect(calls[0]).toMatchObject({
+      command: "ffprobe",
+      args: expect.arrayContaining(["/tmp/project/media/a.mp4"]),
+    });
+    const firstRender = calls.find((call) => call.command === "ffmpeg");
+    expect(firstRender?.args).toEqual(expect.arrayContaining(["-map", "1:a:0"]));
+    expect(firstRender?.args).toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
   });
 
   it("rejects timelines without a visual video or image track", () => {

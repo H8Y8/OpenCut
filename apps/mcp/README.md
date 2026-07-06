@@ -28,6 +28,17 @@ bun run build
 bun run dev
 ```
 
+Export a loaded edit-decision timeline without writing a custom script:
+
+```sh
+bun run export -- /absolute/path/to/edit-decision.json \
+  --inventory /absolute/path/to/media-inventory.json \
+  --media-root /absolute/path/to/project \
+  --out /absolute/path/to/project/preview/output.mp4
+```
+
+Add `--dry-run` to print the `ffmpeg` command plan without rendering.
+
 From the repo root, Moon also discovers this app via `apps/*`:
 
 ```sh

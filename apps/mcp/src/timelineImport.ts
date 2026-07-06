@@ -30,6 +30,15 @@ export type ImportedTimelineTrack = {
   items: ImportedTimelineItem[];
 };
 
+export type ImportedTimelineSubtitle = {
+  id: string;
+  start: number;
+  duration: number;
+  text: string;
+  language?: string;
+  style?: string;
+};
+
 export type ImportedTimeline = {
   project: {
     title: string;
@@ -43,6 +52,7 @@ export type ImportedTimeline = {
   height: number;
   assets: ImportedTimelineAsset[];
   tracks: ImportedTimelineTrack[];
+  subtitles: ImportedTimelineSubtitle[];
   warnings: string[];
 };
 
@@ -77,6 +87,14 @@ type ValidatedEditDecision = {
       }>;
     }>;
   };
+  subtitles?: Array<{
+    id: string;
+    start: number;
+    duration: number;
+    text: string;
+    language?: string;
+    style?: string;
+  }>;
 };
 
 export class TimelineImportError extends Error {
@@ -155,6 +173,14 @@ export function importTimeline(editDecision: unknown, mediaInventory?: unknown):
     height: plan.timeline.height ?? heightFromAspectRatio(plan.project.aspect_ratio),
     assets,
     tracks,
+    subtitles: (plan.subtitles ?? []).map((subtitle) => ({
+      id: subtitle.id,
+      start: subtitle.start,
+      duration: subtitle.duration,
+      text: subtitle.text,
+      language: subtitle.language,
+      style: subtitle.style,
+    })),
     warnings: validation.warnings,
   };
 }

@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { promisify } from "node:util";
 
-import type { ImportedTimeline, ImportedTimelineItem } from "../timelineImport";
+import type { ImportedTimeline, ImportedTimelineItem, ImportedTimelineSubtitle } from "../timelineImport";
 
 const execFile = promisify(execFileCallback);
 
@@ -16,6 +16,8 @@ export type FfmpegCommandStep = {
 export type FfmpegRenderPlan = {
   concatFilePath: string;
   concatFileContent: string;
+  subtitleFilePath?: string;
+  subtitleFileContent?: string;
   outputPath: string;
   steps: FfmpegCommandStep[];
 };
@@ -120,7 +122,11 @@ export function buildFfmpegRenderPlan(
   const concatFileContent =
     steps.map((step) => `file '${step.outputPath.replaceAll("'", "'\\''")}'`).join("\n") + "\n";
   const audioItems = explicitAudioItems(timeline);
-  const visualConcatPath = audioItems.length > 0 ? join(workDir, "visual-concat.mp4") : outputPath;
+  const subtitles = subtitleItems(timeline);
+  const hasSubtitles = subtitles.length > 0;
+  const subtitleFilePath = hasSubtitles ? join(workDir, "subtitles.srt") : undefined;
+  const subtitleFileContent = hasSubtitles ? buildSrtFileContent(subtitles) : undefined;
+  const visualConcatPath = audioItems.length > 0 || hasSubtitles ? join(workDir, "visual-concat.mp4") : outputPath;
   steps.push({
     command: "ffmpeg",
     outputPath: visualConcatPath,
@@ -154,9 +160,10 @@ export function buildFfmpegRenderPlan(
   });
 
   if (audioSegmentPaths.length > 0) {
+    const audioMixPath = hasSubtitles ? join(workDir, "audio-mix.mp4") : outputPath;
     steps.push({
       command: "ffmpeg",
-      outputPath,
+      outputPath: audioMixPath,
       args: [
         "-y",
         "-i",
@@ -173,12 +180,37 @@ export function buildFfmpegRenderPlan(
         "-c:a",
         "aac",
         "-shortest",
+        audioMixPath,
+      ],
+    });
+  }
+
+  if (hasSubtitles && subtitleFilePath !== undefined) {
+    const subtitleInputPath = audioSegmentPaths.length > 0 ? join(workDir, "audio-mix.mp4") : visualConcatPath;
+    steps.push({
+      command: "ffmpeg",
+      outputPath,
+      args: [
+        "-y",
+        "-i",
+        subtitleInputPath,
+        "-vf",
+        subtitleFilter(subtitleFilePath),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "copy",
+        "-shortest",
         outputPath,
       ],
     });
   }
 
-  return { concatFilePath, concatFileContent, outputPath, steps };
+  return { concatFilePath, concatFileContent, subtitleFilePath, subtitleFileContent, outputPath, steps };
 }
 
 export async function renderTimelineWithFfmpeg(
@@ -195,6 +227,9 @@ export async function renderTimelineWithFfmpeg(
   await makeDir(options.workDir, { recursive: true });
   await makeDir(dirname(options.outputPath), { recursive: true });
   await writeText(plan.concatFilePath, plan.concatFileContent, "utf8");
+  if (plan.subtitleFilePath !== undefined && plan.subtitleFileContent !== undefined) {
+    await writeText(plan.subtitleFilePath, plan.subtitleFileContent, "utf8");
+  }
   for (const step of plan.steps) {
     await run(step.command, step.args);
   }
@@ -212,6 +247,56 @@ function explicitAudioItems(timeline: ImportedTimeline): ImportedTimelineItem[] 
     .flatMap((track) => track.items)
     .filter((item) => item.assetType === "audio" || item.assetType === "video")
     .sort((left, right) => left.start - right.start || left.id.localeCompare(right.id));
+}
+
+function subtitleItems(timeline: ImportedTimeline): ImportedTimelineSubtitle[] {
+  return [...timeline.subtitles].sort((left, right) => left.start - right.start || left.id.localeCompare(right.id));
+}
+
+function buildSrtFileContent(subtitles: ImportedTimelineSubtitle[]): string {
+  return (
+    subtitles
+      .map((subtitle, index) =>
+        [
+          String(index + 1),
+          `${srtTimestamp(subtitle.start)} --> ${srtTimestamp(subtitle.start + subtitle.duration)}`,
+          normalizeSubtitleText(subtitle.text),
+        ].join("\n"),
+      )
+      .join("\n\n") + "\n"
+  );
+}
+
+function normalizeSubtitleText(text: string): string {
+  return text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function srtTimestamp(seconds: number): string {
+  const totalMilliseconds = Math.max(0, Math.round(seconds * 1000));
+  const hours = Math.floor(totalMilliseconds / 3_600_000);
+  const minutes = Math.floor((totalMilliseconds % 3_600_000) / 60_000);
+  const wholeSeconds = Math.floor((totalMilliseconds % 60_000) / 1000);
+  const milliseconds = totalMilliseconds % 1000;
+  return [
+    String(hours).padStart(2, "0"),
+    String(minutes).padStart(2, "0"),
+    String(wholeSeconds).padStart(2, "0"),
+  ].join(":") + `,${String(milliseconds).padStart(3, "0")}`;
+}
+
+function subtitleFilter(filePath: string): string {
+  return `subtitles=${escapeFilterValue(filePath)}`;
+}
+
+function escapeFilterValue(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/:/g, "\\:")
+    .replace(/'/g, "\\'")
+    .replace(/,/g, "\\,")
+    .replace(/\[/g, "\\[")
+    .replace(/\]/g, "\\]")
+    .replace(/ /g, "\\ ");
 }
 
 function audioTimelineFilter(item: ImportedTimelineItem, timelineDuration: number): string {

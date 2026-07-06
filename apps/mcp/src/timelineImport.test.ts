@@ -80,6 +80,35 @@ describe("importTimeline", () => {
     });
   });
 
+  it("normalizes top-level subtitle cues for renderer burn-in", () => {
+    const plan = {
+      ...validEditDecision(),
+      subtitles: [
+        {
+          id: "caption-1",
+          start: 0.5,
+          duration: 1.25,
+          text: "開場字幕",
+          language: "zh-TW",
+          style: "default",
+        },
+      ],
+    };
+
+    const timeline = importTimeline(plan, validInventory);
+
+    expect(timeline.subtitles).toEqual([
+      {
+        id: "caption-1",
+        start: 0.5,
+        duration: 1.25,
+        text: "開場字幕",
+        language: "zh-TW",
+        style: "default",
+      },
+    ]);
+  });
+
   it("rejects invalid edit decisions with validation errors", () => {
     const plan = validEditDecision();
     plan.timeline.tracks[0].items[0].asset_path = "missing.mp4";

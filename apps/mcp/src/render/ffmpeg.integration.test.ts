@@ -75,6 +75,7 @@ describe("renderTimelineWithFfmpeg integration", () => {
           ],
         },
       ],
+      subtitles: [],
       warnings: [],
     };
     const outputPath = join(root, ".ai-edits", "preview", "output.mp4");
@@ -168,6 +169,7 @@ describe("renderTimelineWithFfmpeg integration", () => {
           ],
         },
       ],
+      subtitles: [],
       warnings: [],
     };
     const outputPath = join(root, ".ai-edits", "preview", "output.mp4");
@@ -193,5 +195,87 @@ describe("renderTimelineWithFfmpeg integration", () => {
       result.outputPath,
     ]);
     expect(probe.stdout.trim()).toBe("aac");
+  });
+
+  it("renders a real mp4 with burned-in subtitles when ffmpeg is installed", async () => {
+    if (!(await hasFfmpeg())) {
+      console.warn("Skipping subtitle render because ffmpeg is not installed.");
+      return;
+    }
+
+    const root = await mkdtemp(join(tmpdir(), "opencut-render-subtitles-"));
+    await execFile("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=blue:s=320x180:d=1",
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "-shortest",
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      join(root, "clip.mp4"),
+    ]);
+
+    const timeline: ImportedTimeline = {
+      project: { title: "Subtitle render", aspectRatio: "16:9", targetDurationSeconds: 1, language: "zh-TW" },
+      durationSeconds: 1,
+      fps: 24,
+      width: 320,
+      height: 180,
+      assets: [{ path: "clip.mp4", type: "video" }],
+      tracks: [
+        {
+          id: "v1",
+          type: "video",
+          items: [
+            {
+              id: "clip",
+              trackId: "v1",
+              trackType: "video",
+              assetPath: "clip.mp4",
+              assetType: "video",
+              start: 0,
+              duration: 1,
+              sourceIn: 0,
+              sourceOut: 1,
+              rationale: "Subtitle fixture.",
+            },
+          ],
+        },
+      ],
+      subtitles: [{ id: "cap-1", start: 0, duration: 1, text: "Smoke subtitle", language: "en" }],
+      warnings: [],
+    };
+    const outputPath = join(root, ".ai-edits", "preview", "subtitled-output.mp4");
+
+    const result = await renderTimelineWithFfmpeg(timeline, {
+      mediaRoot: root,
+      workDir: join(root, ".ai-edits", "render-work"),
+      outputPath,
+    });
+
+    await access(result.outputPath);
+    expect((await stat(result.outputPath)).size).toBeGreaterThan(0);
+
+    const probe = await execFile("ffprobe", [
+      "-v",
+      "error",
+      "-select_streams",
+      "v:0",
+      "-show_entries",
+      "stream=codec_name",
+      "-of",
+      "csv=p=0",
+      result.outputPath,
+    ]);
+    expect(probe.stdout.trim()).toBe("h264");
   });
 });

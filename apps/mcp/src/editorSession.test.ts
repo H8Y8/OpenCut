@@ -31,6 +31,7 @@ function importedTimeline(): ImportedTimeline {
         ],
       },
     ],
+    subtitles: [],
     warnings: [],
   };
 }

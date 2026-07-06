@@ -46,6 +46,7 @@ function timeline(): ImportedTimeline {
         ],
       },
     ],
+    subtitles: [],
     warnings: [],
   };
 }
@@ -76,6 +77,20 @@ function timelineWithAudioTrack(): ImportedTimeline {
         ],
       },
     ],
+  };
+}
+
+function timelineWithSubtitles(): ImportedTimeline {
+  return {
+    ...timeline(),
+    subtitles: [{ id: "cap-1", start: 0.5, duration: 1, text: "Hello\nWorld" }],
+  };
+}
+
+function timelineWithAudioAndSubtitles(): ImportedTimeline {
+  return {
+    ...timelineWithAudioTrack(),
+    subtitles: [{ id: "cap-1", start: 0.5, duration: 1, text: "Hello\nWorld" }],
   };
 }
 
@@ -154,6 +169,67 @@ describe("buildFfmpegRenderPlan", () => {
     );
   });
 
+  it("builds an SRT file and burns subtitle cues into the final output", () => {
+    const plan = buildFfmpegRenderPlan(timelineWithSubtitles(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    }) as ReturnType<typeof buildFfmpegRenderPlan> & {
+      subtitleFilePath?: string;
+      subtitleFileContent?: string;
+    };
+
+    expect(plan.subtitleFilePath).toBe("/tmp/project/.ai-edits/render-work/subtitles.srt");
+    expect(plan.subtitleFileContent).toContain(
+      ["1", "00:00:00,500 --> 00:00:01,500", "Hello", "World"].join("\n"),
+    );
+    expect(plan.steps).toHaveLength(4);
+    expect(plan.steps[2]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/visual-concat.mp4",
+    });
+    expect(plan.steps[3]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+    expect(plan.steps[3].args).toEqual(
+      expect.arrayContaining([
+        "-i",
+        "/tmp/project/.ai-edits/render-work/visual-concat.mp4",
+        "-vf",
+        "subtitles=/tmp/project/.ai-edits/render-work/subtitles.srt",
+        "-c:a",
+        "copy",
+      ]),
+    );
+  });
+
+  it("burns subtitle cues after explicit audio track mixing", () => {
+    const plan = buildFfmpegRenderPlan(timelineWithAudioAndSubtitles(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+
+    expect(plan.steps).toHaveLength(6);
+    expect(plan.steps[4]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/audio-mix.mp4",
+    });
+    expect(plan.steps[5]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+    expect(plan.steps[5].args).toEqual(
+      expect.arrayContaining([
+        "-i",
+        "/tmp/project/.ai-edits/render-work/audio-mix.mp4",
+        "-vf",
+        "subtitles=/tmp/project/.ai-edits/render-work/subtitles.srt",
+      ]),
+    );
+  });
+
   it("probes video assets before rendering so missing audio falls back to silence", async () => {
     const calls: Array<{ command: string; args: string[] }> = [];
 
@@ -179,6 +255,30 @@ describe("buildFfmpegRenderPlan", () => {
     const firstRender = calls.find((call) => call.command === "ffmpeg");
     expect(firstRender?.args).toEqual(expect.arrayContaining(["-map", "1:a:0"]));
     expect(firstRender?.args).toContain("anullsrc=channel_layout=stereo:sample_rate=48000");
+  });
+
+  it("writes subtitle files before executing render steps", async () => {
+    const writes: Array<{ path: string; content: string }> = [];
+
+    await renderTimelineWithFfmpeg(timelineWithSubtitles(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      sourceAudioByAssetPath: {
+        "media/a.mp4": false,
+      },
+      execFile: async () => ({}),
+      mkdir: async () => {},
+      writeFile: async (path, content) => {
+        writes.push({ path, content });
+      },
+    });
+
+    expect(writes.map((write) => write.path)).toEqual([
+      "/tmp/project/.ai-edits/render-work/concat.txt",
+      "/tmp/project/.ai-edits/render-work/subtitles.srt",
+    ]);
+    expect(writes[1].content).toContain("00:00:00,500 --> 00:00:01,500");
   });
 
   it("rejects timelines without a visual video or image track", () => {

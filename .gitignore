@@ -2,6 +2,7 @@ node_modules/
 dist/
 .ai-edits/
 .playwright-mcp/
+.worktrees
 .worktrees/
 .next/
 next-env.d.ts

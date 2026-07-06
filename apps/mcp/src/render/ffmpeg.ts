@@ -80,7 +80,7 @@ export function buildFfmpegRenderPlan(
   let visualSegmentIndex = 0;
   for (const item of visualItems) {
     if (item.start < visualCursor) {
-      throw new FfmpegRenderError("visual items on the primary track must not overlap");
+      throw new FfmpegRenderError("visual items must not overlap");
     }
     if (item.start > visualCursor) {
       const gapPath = join(workDir, `gap-${String(visualSegmentIndex).padStart(3, "0")}.mp4`);
@@ -264,8 +264,11 @@ export async function renderTimelineWithFfmpeg(
 }
 
 function primaryVisualItems(timeline: ImportedTimeline): ImportedTimelineItem[] {
-  const track = timeline.tracks.find((candidate) => candidate.type === "video" || candidate.type === "image");
-  return track?.items.filter((item) => item.assetType === "video" || item.assetType === "image") ?? [];
+  return timeline.tracks
+    .filter((track) => track.type === "video" || track.type === "image")
+    .flatMap((track) => track.items)
+    .filter((item) => item.assetType === "video" || item.assetType === "image")
+    .sort((left, right) => left.start - right.start || left.trackId.localeCompare(right.trackId) || left.id.localeCompare(right.id));
 }
 
 function explicitAudioItems(timeline: ImportedTimeline): ImportedTimelineItem[] {

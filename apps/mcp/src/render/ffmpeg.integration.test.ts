@@ -361,4 +361,117 @@ describe("renderTimelineWithFfmpeg integration", () => {
     expect(duration).toBeGreaterThan(1.8);
     expect(duration).toBeLessThan(2.3);
   });
+
+  it("renders sequential visual items from separate visual tracks", async () => {
+    if (!(await hasFfmpeg())) {
+      console.warn("Skipping multi-visual-track render because ffmpeg or ffprobe is not installed.");
+      return;
+    }
+
+    const root = await mkdtemp(join(tmpdir(), "opencut-render-visual-tracks-"));
+    await execFile("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=orange:s=320x180:d=1",
+      "-f",
+      "lavfi",
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "-shortest",
+      "-c:v",
+      "libx264",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      join(root, "clip.mp4"),
+    ]);
+    await execFile("ffmpeg", [
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "color=c=cyan:s=320x180:d=0.1",
+      "-frames:v",
+      "1",
+      join(root, "still.png"),
+    ]);
+
+    const timeline: ImportedTimeline = {
+      project: { title: "Visual tracks render", aspectRatio: "16:9", targetDurationSeconds: 2, language: "zh-TW" },
+      durationSeconds: 2,
+      fps: 24,
+      width: 320,
+      height: 180,
+      assets: [
+        { path: "clip.mp4", type: "video" },
+        { path: "still.png", type: "image" },
+      ],
+      tracks: [
+        {
+          id: "v1",
+          type: "video",
+          items: [
+            {
+              id: "clip",
+              trackId: "v1",
+              trackType: "video",
+              assetPath: "clip.mp4",
+              assetType: "video",
+              start: 0,
+              duration: 1,
+              sourceIn: 0,
+              sourceOut: 1,
+              rationale: "First visual track fixture.",
+            },
+          ],
+        },
+        {
+          id: "i1",
+          type: "image",
+          items: [
+            {
+              id: "still",
+              trackId: "i1",
+              trackType: "image",
+              assetPath: "still.png",
+              assetType: "image",
+              start: 1,
+              duration: 1,
+              sourceIn: 0,
+              sourceOut: 1,
+              rationale: "Second visual track fixture.",
+            },
+          ],
+        },
+      ],
+      subtitles: [],
+      warnings: [],
+    };
+    const outputPath = join(root, ".ai-edits", "preview", "visual-tracks-output.mp4");
+
+    const result = await renderTimelineWithFfmpeg(timeline, {
+      mediaRoot: root,
+      workDir: join(root, ".ai-edits", "render-work"),
+      outputPath,
+    });
+
+    await access(result.outputPath);
+    expect((await stat(result.outputPath)).size).toBeGreaterThan(0);
+
+    const probe = await execFile("ffprobe", [
+      "-v",
+      "error",
+      "-show_entries",
+      "format=duration",
+      "-of",
+      "default=noprint_wrappers=1:nokey=1",
+      result.outputPath,
+    ]);
+    const duration = Number(probe.stdout.trim());
+    expect(duration).toBeGreaterThan(1.8);
+    expect(duration).toBeLessThan(2.3);
+  });
 });

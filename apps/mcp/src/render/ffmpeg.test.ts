@@ -144,6 +144,38 @@ function timelineWithTailVisualGap(): ImportedTimeline {
   };
 }
 
+function timelineWithSeparateVisualTracks(): ImportedTimeline {
+  const base = timeline();
+  return {
+    ...base,
+    tracks: [
+      {
+        ...base.tracks[0],
+        items: [base.tracks[0].items[0]],
+      },
+      {
+        id: "i1",
+        type: "image",
+        items: [{ ...base.tracks[0].items[1], trackId: "i1", trackType: "image" }],
+      },
+    ],
+  };
+}
+
+function timelineWithOverlappingVisualTracks(): ImportedTimeline {
+  const base = timelineWithSeparateVisualTracks();
+  return {
+    ...base,
+    tracks: [
+      base.tracks[0],
+      {
+        ...base.tracks[1],
+        items: [{ ...base.tracks[1].items[0], start: 0.5 }],
+      },
+    ],
+  };
+}
+
 describe("buildFfmpegRenderPlan", () => {
   it("builds segment commands and a concat command without shell interpolation", () => {
     const plan = buildFfmpegRenderPlan(timeline(), {
@@ -168,6 +200,37 @@ describe("buildFfmpegRenderPlan", () => {
     expect(plan.steps[2].args).toEqual(expect.arrayContaining(["-f", "concat", "-safe", "0"]));
     expect(plan.concatFilePath).toBe("/tmp/project/.ai-edits/render-work/concat.txt");
     expect(plan.outputPath).toBe("/tmp/project/.ai-edits/preview/output.mp4");
+  });
+
+  it("renders sequential visual items from separate video and image tracks", () => {
+    const plan = buildFfmpegRenderPlan(timelineWithSeparateVisualTracks(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+
+    expect(plan.steps).toHaveLength(3);
+    expect(plan.steps[0]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/segment-000.mp4",
+    });
+    expect(plan.steps[1]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/segment-001.mp4",
+    });
+    expect(plan.steps[1].args).toContain("/tmp/project/media/b.jpg");
+    expect(plan.concatFileContent).toContain("segment-000.mp4");
+    expect(plan.concatFileContent).toContain("segment-001.mp4");
+  });
+
+  it("rejects overlapping visual items across separate visual tracks", () => {
+    expect(() =>
+      buildFfmpegRenderPlan(timelineWithOverlappingVisualTracks(), {
+        mediaRoot: "/tmp/project",
+        workDir: "/tmp/project/.ai-edits/render-work",
+        outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      }),
+    ).toThrow("visual items must not overlap");
   });
 
   it("preserves visual timeline gaps as black silent segments", () => {
@@ -226,7 +289,7 @@ describe("buildFfmpegRenderPlan", () => {
         workDir: "/tmp/project/.ai-edits/render-work",
         outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
       }),
-    ).toThrow("visual items on the primary track must not overlap");
+    ).toThrow("visual items must not overlap");
   });
 
   it("uses silent fallback audio for video assets known to have no source audio", () => {

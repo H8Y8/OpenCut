@@ -4,7 +4,7 @@ description: Use this skill whenever the user wants an AI agent to analyze many 
 version: 0.3.0
 author: Hermes Agent
 license: MIT
-compatibility: Project skill for Claude Code / Agent Skills. Works today as a planning and edit-decision workflow with a local read-only MCP server for validating/summarizing edit-decision packages; rendering/import execution requires a future OpenCut Editor API, plugin, or headless renderer.
+compatibility: Project skill for Claude Code / Agent Skills. Works today as a planning and edit-decision workflow with a local MCP execution layer for validating, summarizing, importing, controlling, and ffmpeg-rendering edit-decision packages; native OpenCut editor import/render still requires a future Editor API, plugin, or renderer.
 ---
 
 # OpenCut AI Video Editor Skill
@@ -13,18 +13,20 @@ compatibility: Project skill for Claude Code / Agent Skills. Works today as a pl
 
 Turn a large folder of raw videos, images, voice/audio, and a human creative brief into a concrete OpenCut editing plan. The plan must be specific enough for an agent, future MCP server, plugin, or headless renderer to apply without re-interpreting the user’s intent.
 
-This skill follows the workflow implied by the Threads post the user referenced: do not rebuild a video editor from scratch; stand on OpenCut, use coding agents to add missing integration layers, then package repeated post-production expertise as Skills/Plugins. OpenCut `main` is currently a ground-up rewrite whose README lists Editor API, third-party plugins, MCP server, headless mode, and scripting tab as upcoming capabilities. Until those APIs exist locally, this skill’s reliable deliverable is an **edit-decision package** rather than a claimed finished export.
+This skill follows the workflow implied by the Threads post the user referenced: do not rebuild a video editor from scratch; stand on OpenCut, use coding agents to add missing integration layers, then package repeated post-production expertise as Skills/Plugins. OpenCut `main` is currently a ground-up rewrite whose README lists Editor API, third-party plugins, MCP server, headless mode, and scripting tab as upcoming capabilities. This checkout now includes a local `apps/mcp` execution layer that can import/control an edit decision and produce an ffmpeg preview export, while native OpenCut editor import/render remains unavailable until the future editor surfaces exist.
 
 ## Current OpenCut Checkout Reality Check
 
-As of this skill version, the local `main` branch is the rewrite scaffold, not a usable editor automation surface:
+As of this skill version, the local `main` branch is still a rewrite scaffold, but `apps/mcp` now provides a usable edit-decision execution surface:
 
 - `README.md` lists Editor API, plugins, headless mode, and scripting tab as planned rewrite goals.
-- `apps/mcp` provides a local stdio MCP server for read-only package validation and summaries: `opencut_get_capabilities`, `opencut_validate_edit_decision`, and `opencut_summarize_edit_decision`.
+- `apps/mcp` provides a local stdio MCP server for package validation, summaries, timeline import, in-memory editor control, and ffmpeg preview export.
+- The ffmpeg adapter supports hard cuts, sequential video/image tracks, visual gaps, source audio, explicit audio tracks, basic subtitle burn-in, and render manifests.
+- Native OpenCut editor import/render, Editor API, plugin API, transforms, transitions, effects, keyframes, compositing, and custom subtitle styling are not implemented in this checkout.
 - `apps/web/src/routes/index.tsx` currently renders only `hello world!`; there is no checked-in timeline/editor/export implementation to call.
 - `apps/api/src/index.ts` exposes only `/`, `/health`, and `/echo` routes.
 
-Therefore default to `plan-only` unless a future checkout adds an actual OpenCut editor API/plugin/headless renderer. The current MCP server can validate and summarize edit packages, but it cannot import/render them. Do not invent OpenCut APIs.
+Therefore default to `ffmpeg-preview` or `plan-only` depending on the user’s request and local media availability. Use `opencut-apply` only for the available MCP execution layer unless a future checkout adds a native OpenCut editor API/plugin/headless renderer. Do not invent OpenCut APIs.
 
 ## Non-Negotiables
 
@@ -150,13 +152,13 @@ Completion criterion: each layer is either represented in `edit-decision.json` o
 Before applying, discover whether the local OpenCut checkout has any of these:
 
 - MCP server for editor control.
-- Read-only MCP tools under `apps/mcp` for validation/summarization (use them when available, but do not treat them as render/import proof).
+- MCP tools under `apps/mcp` for validation, summarization, timeline import/control, and ffmpeg preview export.
 - Editor API / plugin API.
 - Headless renderer.
 - Import format matching `edit-decision.json` or a convertible timeline schema.
 - Scripting tab / script runner.
 
-If one exists, call it and save command logs under `.ai-edits/<project-slug>/manifests/`. If none exists, stop at the edit-decision package and state: “OpenCut execution surface is not available in this checkout.” `edit-decision.json` is this skill’s adapter boundary, not a verified native OpenCut import format unless a future checkout proves it.
+If one exists, call it and save command logs under `.ai-edits/<project-slug>/manifests/`. If none exists, stop at the edit-decision package and state: “OpenCut execution surface is not available in this checkout.” `edit-decision.json` is this skill’s adapter boundary; in this checkout it is verified against the local MCP/ffmpeg preview path, not native OpenCut editor import.
 
 Completion criterion for execution mode: real tool output proves the project was imported/rendered/exported.
 

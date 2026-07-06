@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://opencut.app/schemas/ai-edit-decision.v1.json",
   "title": "OpenCut AI Edit Decision",
+  "description": "Durable edit-decision package for OpenCut AI editing. The current local apps/mcp ffmpeg adapter executes hard-cut video/image/audio/subtitle preview exports from this schema; transforms, effects, transitions, keyframes, compositing, and custom subtitle styling remain future/native-editor intent.",
   "type": "object",
   "required": ["schema_version", "project", "assets", "timeline"],
   "additionalProperties": false,
@@ -30,6 +31,7 @@
     },
     "timeline": {
       "type": "object",
+      "description": "Executable timeline boundary. The current ffmpeg adapter renders sequential video/image items across video/image tracks, preserves gaps as black silent segments, rejects overlapping visual items, mixes explicit audio tracks, and burns top-level subtitle cues.",
       "required": ["duration_seconds", "tracks"],
       "additionalProperties": false,
       "properties": {
@@ -77,6 +79,7 @@
     },
     "track": {
       "type": "object",
+      "description": "Track container. The local ffmpeg adapter executes video, image, and audio tracks; subtitle track items are metadata-only today because top-level subtitles are used for burn-in; overlay tracks are future/native-editor intent.",
       "required": ["id", "type", "items"],
       "additionalProperties": false,
       "properties": {
@@ -90,6 +93,7 @@
     },
     "timelineItem": {
       "type": "object",
+      "description": "Timeline item. The local ffmpeg adapter executes id, asset_path, start, duration, source_in/source_out, and rationale. transform, effects, transitions, keyframes, and caption_ids are preserved as edit intent but are not rendered by the current adapter.",
       "required": ["id", "asset_path", "start", "duration", "rationale"],
       "additionalProperties": false,
       "properties": {
@@ -152,6 +156,7 @@
     },
     "subtitle": {
       "type": "object",
+      "description": "Top-level subtitle cue. The local ffmpeg adapter burns text into preview exports through a basic SRT file; language/style are preserved as metadata and custom styling is not rendered today.",
       "required": ["id", "start", "duration", "text"],
       "additionalProperties": false,
       "properties": {

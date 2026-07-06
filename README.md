@@ -21,7 +21,7 @@
 - An Editor API
 - First-class third party plugins (made possible by a plugin-first architecture)
 - Desktop, mobile, and browser from one codebase (Rust core)
-- Editor-control MCP server for AI agents (an initial edit-decision validation MCP app lives in `apps/mcp`)
+- Editor-control MCP server for AI agents (an initial edit-decision import/control/export MCP app lives in `apps/mcp`)
 - Headless mode (automation, batch rendering)
 - A scripting tab directly in the editor
 
@@ -48,7 +48,7 @@ moon run api:dev   # localhost:8787
 moon run mcp:dev   # local stdio MCP server for AI edit-decision packages
 ```
 
-The current MCP app validates and summarizes AI-generated OpenCut edit-decision packages. It does not render video until the rewrite exposes a real Editor API, plugin API, native MCP surface, or headless renderer. See `apps/mcp/README.md`.
+The current MCP app validates, summarizes, imports, controls, and exports AI-generated OpenCut edit-decision packages through a local `ffmpeg` adapter. This is a practical execution layer for edit-decision previews, not proof of native OpenCut editor import/render through the future Editor API, plugin API, or Rust renderer. See `apps/mcp/README.md`.
 
 ## Contributing
 

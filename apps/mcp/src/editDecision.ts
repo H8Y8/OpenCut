@@ -119,7 +119,9 @@ export function getOpenCutMcpCapabilities(): OpenCutMcpCapabilities {
       ffmpegRenderAdapter: true,
     },
     caveats: [
-      "This server can import, control, and ffmpeg-render edit-decision timelines. Native OpenCut editor import/render remains unavailable until OpenCut exposes a real editor API, plugin API, MCP surface, or headless renderer.",
+      "This server imports, controls, and exports edit-decision timelines through a local ffmpeg adapter.",
+      "Native OpenCut editor import/render remains unavailable until OpenCut exposes a real Editor API, plugin API, native MCP surface, or headless renderer.",
+      "The ffmpeg adapter supports hard cuts, sequential video/image tracks, visual gaps, source audio, explicit audio tracks, basic subtitle burn-in, and render manifests; transforms, transitions, effects, keyframes, compositing, and custom subtitle styling are not implemented.",
     ],
   };
 }

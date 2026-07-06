@@ -10,6 +10,10 @@ export const OPENCUT_MCP_TOOL_NAMES = [
   "opencut_get_capabilities",
   "opencut_validate_edit_decision",
   "opencut_summarize_edit_decision",
+  "opencut_import_timeline",
+  "opencut_get_timeline_state",
+  "opencut_select_timeline_item",
+  "opencut_update_timeline_item_timing",
 ] as const;
 
 type OpenCutMcpToolHandlers = ReturnType<typeof createOpenCutMcpToolHandlers>;
@@ -20,6 +24,8 @@ const mediaInventoryPathSchema = z
   .min(1)
   .optional()
   .describe("Optional path to a media-inventory JSON file for source asset checks.");
+const itemIdSchema = z.string().min(1).describe("Timeline item id.");
+const optionalNumberSchema = z.number().finite().optional();
 
 export function createOpenCutMcpServer(handlers = createOpenCutMcpToolHandlers()): McpServer {
   const server = new McpServer({
@@ -89,6 +95,89 @@ export function registerOpenCutMcpTools(
     async (args) =>
       handlers.summarizeEditDecision({
         editDecisionPath: String(args.editDecisionPath),
+      }),
+  );
+
+  server.registerTool(
+    "opencut_import_timeline",
+    {
+      title: "Import OpenCut timeline",
+      description:
+        "Load an OpenCut edit-decision JSON file into the in-memory editor-control session.",
+      inputSchema: {
+        editDecisionPath: editDecisionPathSchema,
+        mediaInventoryPath: mediaInventoryPathSchema,
+      },
+      annotations: {
+        readOnlyHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args) =>
+      handlers.importTimeline({
+        editDecisionPath: String(args.editDecisionPath),
+        mediaInventoryPath:
+          typeof args.mediaInventoryPath === "string" ? args.mediaInventoryPath : undefined,
+      }),
+  );
+
+  server.registerTool(
+    "opencut_get_timeline_state",
+    {
+      title: "Get OpenCut timeline state",
+      description: "Return the currently loaded in-memory OpenCut timeline-control state.",
+      annotations: {
+        readOnlyHint: true,
+        openWorldHint: false,
+      },
+    },
+    async () => handlers.getTimelineState(),
+  );
+
+  server.registerTool(
+    "opencut_select_timeline_item",
+    {
+      title: "Select OpenCut timeline item",
+      description: "Select a timeline item in the in-memory OpenCut editor-control session.",
+      inputSchema: {
+        itemId: itemIdSchema,
+      },
+      annotations: {
+        readOnlyHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args) =>
+      handlers.selectTimelineItem({
+        itemId: String(args.itemId),
+      }),
+  );
+
+  server.registerTool(
+    "opencut_update_timeline_item_timing",
+    {
+      title: "Update OpenCut timeline item timing",
+      description:
+        "Update simple timing and source trim metadata for one loaded timeline item.",
+      inputSchema: {
+        itemId: itemIdSchema,
+        start: optionalNumberSchema,
+        duration: optionalNumberSchema,
+        sourceIn: optionalNumberSchema,
+        sourceOut: optionalNumberSchema,
+      },
+      annotations: {
+        readOnlyHint: false,
+        openWorldHint: false,
+      },
+    },
+    async (args) =>
+      handlers.updateTimelineItemTiming({
+        itemId: String(args.itemId),
+        start: typeof args.start === "number" ? args.start : undefined,
+        duration: typeof args.duration === "number" ? args.duration : undefined,
+        sourceIn: typeof args.sourceIn === "number" ? args.sourceIn : undefined,
+        sourceOut: typeof args.sourceOut === "number" ? args.sourceOut : undefined,
       }),
   );
 }

@@ -102,6 +102,28 @@ describe("OpenCut MCP stdio server", () => {
       const validationContent = validation.content[0] as { type: "text"; text: string };
       expect(JSON.parse(validationContent.text).valid).toBe(true);
       expect(validation.structuredContent).toMatchObject({ valid: true });
+
+      const imported = (await client.callTool({
+        name: "opencut_import_timeline",
+        arguments: { editDecisionPath, mediaInventoryPath },
+      })) as {
+        structuredContent?: Record<string, unknown>;
+      };
+      expect(imported.structuredContent).toMatchObject({
+        loaded: true,
+        projectTitle: "Client smoke test",
+      });
+
+      const state = (await client.callTool({
+        name: "opencut_get_timeline_state",
+        arguments: {},
+      })) as {
+        structuredContent?: Record<string, unknown>;
+      };
+      expect(state.structuredContent).toMatchObject({
+        loaded: true,
+        projectTitle: "Client smoke test",
+      });
     } finally {
       await client.close();
     }

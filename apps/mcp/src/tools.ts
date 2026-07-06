@@ -5,6 +5,8 @@ import {
   summarizeEditDecision,
   validateEditDecision,
 } from "./editDecision";
+import { OpenCutEditorSession, summarizeTimelineState } from "./editorSession";
+import { importTimeline as importEditDecisionTimeline } from "./timelineImport";
 
 type TextContent = {
   type: "text";
@@ -18,6 +20,7 @@ export type McpTextResponse = {
 
 type ToolHandlerDeps = {
   readTextFile?: (path: string) => Promise<string>;
+  editorSession?: OpenCutEditorSession;
 };
 
 type ValidateEditDecisionInput = {
@@ -29,8 +32,21 @@ type SummarizeEditDecisionInput = {
   editDecisionPath: string;
 };
 
+type SelectTimelineItemInput = {
+  itemId: string;
+};
+
+type UpdateTimelineItemTimingInput = {
+  itemId: string;
+  start?: number;
+  duration?: number;
+  sourceIn?: number;
+  sourceOut?: number;
+};
+
 export function createOpenCutMcpToolHandlers(deps: ToolHandlerDeps = {}) {
   const readTextFile = deps.readTextFile ?? ((path: string) => readFile(path, "utf8"));
+  const editorSession = deps.editorSession ?? new OpenCutEditorSession();
 
   return {
     async getCapabilities(): Promise<McpTextResponse> {
@@ -49,6 +65,30 @@ export function createOpenCutMcpToolHandlers(deps: ToolHandlerDeps = {}) {
     async summarizeEditDecision(input: SummarizeEditDecisionInput): Promise<McpTextResponse> {
       const editDecision = await readJson(readTextFile, input.editDecisionPath, "edit decision");
       return textResponse(summarizeEditDecision(editDecision));
+    },
+
+    async importTimeline(input: ValidateEditDecisionInput): Promise<McpTextResponse> {
+      const editDecision = await readJson(readTextFile, input.editDecisionPath, "edit decision");
+      const mediaInventory = input.mediaInventoryPath
+        ? await readJson(readTextFile, input.mediaInventoryPath, "media inventory")
+        : undefined;
+      const timeline = importEditDecisionTimeline(editDecision, mediaInventory);
+      return jsonResponse(editorSession.load(timeline, input));
+    },
+
+    async getTimelineState(): Promise<McpTextResponse> {
+      const state = editorSession.getState();
+      const response = textResponse(summarizeTimelineState(state));
+      response.structuredContent = state;
+      return response;
+    },
+
+    async selectTimelineItem(input: SelectTimelineItemInput): Promise<McpTextResponse> {
+      return jsonResponse(editorSession.selectItem(input.itemId));
+    },
+
+    async updateTimelineItemTiming(input: UpdateTimelineItemTimingInput): Promise<McpTextResponse> {
+      return jsonResponse(editorSession.updateItemTiming(input.itemId, input));
     },
   };
 }

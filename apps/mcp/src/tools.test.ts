@@ -85,4 +85,59 @@ describe("createOpenCutMcpToolHandlers", () => {
       execution: { openCutNativeImport: false },
     });
   });
+
+  it("imports an edit-decision file into the editor-control session", async () => {
+    const root = await mkdtemp(join(tmpdir(), "opencut-mcp-"));
+    const editDecisionPath = await writeJson(root, "edit-decision.json", validEditDecision());
+    const mediaInventoryPath = await writeJson(root, "media-inventory.json", {
+      schema_version: "opencut.media-inventory.v1",
+      root,
+      summary: { video: 1, image: 0, audio: 0, other: 0 },
+      assets: [{ path: "clip.mp4", type: "video", sha256: "abc123" }],
+    });
+    const handlers = createOpenCutMcpToolHandlers();
+
+    const response = await handlers.importTimeline({ editDecisionPath, mediaInventoryPath });
+
+    expect(response.structuredContent).toMatchObject({
+      loaded: true,
+      projectTitle: "Launch reel",
+      trackCount: 1,
+      itemCount: 1,
+    });
+  });
+
+  it("returns timeline state after import and can select an item", async () => {
+    const root = await mkdtemp(join(tmpdir(), "opencut-mcp-"));
+    const editDecisionPath = await writeJson(root, "edit-decision.json", validEditDecision());
+    const handlers = createOpenCutMcpToolHandlers();
+    await handlers.importTimeline({ editDecisionPath });
+
+    const selected = await handlers.selectTimelineItem({ itemId: "hook" });
+    const state = await handlers.getTimelineState();
+
+    expect(selected.structuredContent).toMatchObject({ loaded: true, selectedItemId: "hook" });
+    expect(state.content[0].text).toContain("Project: Launch reel");
+  });
+
+  it("updates timeline item timing through the control session", async () => {
+    const root = await mkdtemp(join(tmpdir(), "opencut-mcp-"));
+    const editDecisionPath = await writeJson(root, "edit-decision.json", validEditDecision());
+    const handlers = createOpenCutMcpToolHandlers();
+    await handlers.importTimeline({ editDecisionPath });
+
+    const response = await handlers.updateTimelineItemTiming({
+      itemId: "hook",
+      start: 1,
+      duration: 5,
+      sourceIn: 2,
+      sourceOut: 7,
+    });
+
+    expect(response.structuredContent).toMatchObject({ loaded: true, selectedItemId: "hook" });
+    const payload = response.structuredContent as {
+      timeline: { tracks: Array<{ items: Array<{ id: string; start: number; duration: number }> }> };
+    };
+    expect(payload.timeline.tracks[0].items[0]).toMatchObject({ id: "hook", start: 1, duration: 5 });
+  });
 });

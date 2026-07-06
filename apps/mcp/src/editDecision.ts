@@ -103,6 +103,10 @@ export function getOpenCutMcpCapabilities(): OpenCutMcpCapabilities {
       "opencut_get_capabilities",
       "opencut_validate_edit_decision",
       "opencut_summarize_edit_decision",
+      "opencut_import_timeline",
+      "opencut_get_timeline_state",
+      "opencut_select_timeline_item",
+      "opencut_update_timeline_item_timing",
     ],
     execution: {
       openCutNativeImport: false,

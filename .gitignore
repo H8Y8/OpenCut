@@ -9,7 +9,9 @@ __pycache__/
 .env
 .env.*
 !.env.example
-docs/
+docs/*
+!docs/superpowers/
+!docs/superpowers/**
 
 # moon runtime cache
 .moon/cache/

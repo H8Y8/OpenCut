@@ -115,7 +115,7 @@ export function getOpenCutMcpCapabilities(): OpenCutMcpCapabilities {
       headlessRender: false,
       editDecisionTimelineImport: true,
       mcpEditorControl: true,
-      ffmpegRenderAdapter: false,
+      ffmpegRenderAdapter: true,
     },
     caveats: [
       "This server validates and summarizes AI edit-decision packages; it does not render video until OpenCut exposes a real editor API, plugin API, MCP surface, or headless renderer.",

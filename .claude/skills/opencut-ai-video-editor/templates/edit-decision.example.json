@@ -1,0 +1,93 @@
+{
+  "schema_version": "opencut.ai-edit-decision.v1",
+  "project": {
+    "title": "Example 30-second launch reel",
+    "brief": "Turn launch footage into a vertical short with captions and upbeat pacing.",
+    "platform": "Threads / Reels / Shorts",
+    "aspect_ratio": "9:16",
+    "target_duration_seconds": 30,
+    "language": "zh-TW",
+    "style": ["energetic", "clean captions", "minimal transitions"],
+    "assumptions": ["No OpenCut MCP/headless renderer is available yet; this is a plan-only package."]
+  },
+  "assets": [
+    {
+      "path": "launch-demo.mp4",
+      "type": "video",
+      "sha256": "replace-with-media-inventory-hash",
+      "role": "primary footage",
+      "notes": "Best product action shots."
+    },
+    {
+      "path": "bgm.wav",
+      "type": "audio",
+      "role": "background music",
+      "notes": "User-supplied licensed track."
+    }
+  ],
+  "timeline": {
+    "duration_seconds": 30,
+    "fps": 30,
+    "width": 1080,
+    "height": 1920,
+    "tracks": [
+      {
+        "id": "v1",
+        "type": "video",
+        "items": [
+          {
+            "id": "hook-shot",
+            "asset_path": "launch-demo.mp4",
+            "start": 0,
+            "duration": 3.2,
+            "source_in": 12.4,
+            "source_out": 15.6,
+            "rationale": "Fastest visual payoff; use as opening hook.",
+            "transform": {"scale": 1.25, "x": 0, "y": -80},
+            "effects": [{"name": "sharpen", "intensity": 0.15}],
+            "transition_out": {"name": "cut", "duration": 0.05}
+          }
+        ]
+      },
+      {
+        "id": "a1",
+        "type": "audio",
+        "items": [
+          {
+            "id": "bgm-bed",
+            "asset_path": "bgm.wav",
+            "start": 0,
+            "duration": 30,
+            "source_in": 0,
+            "source_out": 30,
+            "rationale": "Matches energetic launch mood; user supplied licensed track."
+          }
+        ]
+      }
+    ]
+  },
+  "subtitles": [
+    {
+      "id": "cap-001",
+      "start": 0.2,
+      "duration": 2.4,
+      "text": "這支影片先抓住最強亮點",
+      "language": "zh-TW",
+      "style": "bold bottom safe-area"
+    }
+  ],
+  "music": {
+    "mood": ["upbeat", "tech", "confident"],
+    "tempo_bpm": 124,
+    "source_asset_path": "bgm.wav",
+    "licensing_note": "User-supplied track; confirm license before publishing.",
+    "ducking": "Reduce BGM by 8 dB under speech."
+  },
+  "rationale": [
+    "Open with a high-motion hook in the first 3 seconds.",
+    "Keep transitions simple because product clarity is more important than effects."
+  ],
+  "open_questions": [
+    "Confirm whether final export should be rendered by OpenCut MCP/headless once available."
+  ]
+}

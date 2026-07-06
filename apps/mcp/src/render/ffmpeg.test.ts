@@ -94,6 +94,56 @@ function timelineWithAudioAndSubtitles(): ImportedTimeline {
   };
 }
 
+function timelineWithVisualGap(): ImportedTimeline {
+  const base = timeline();
+  return {
+    ...base,
+    durationSeconds: 3,
+    project: { ...base.project, targetDurationSeconds: 3 },
+    tracks: [
+      {
+        ...base.tracks[0],
+        items: [
+          base.tracks[0].items[0],
+          {
+            ...base.tracks[0].items[1],
+            start: 2,
+            sourceOut: 1,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function timelineWithVisualOverlap(): ImportedTimeline {
+  const base = timeline();
+  return {
+    ...base,
+    tracks: [
+      {
+        ...base.tracks[0],
+        items: [
+          base.tracks[0].items[0],
+          {
+            ...base.tracks[0].items[1],
+            start: 0.5,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function timelineWithTailVisualGap(): ImportedTimeline {
+  const base = timeline();
+  return {
+    ...base,
+    durationSeconds: 3,
+    project: { ...base.project, targetDurationSeconds: 3 },
+  };
+}
+
 describe("buildFfmpegRenderPlan", () => {
   it("builds segment commands and a concat command without shell interpolation", () => {
     const plan = buildFfmpegRenderPlan(timeline(), {
@@ -118,6 +168,65 @@ describe("buildFfmpegRenderPlan", () => {
     expect(plan.steps[2].args).toEqual(expect.arrayContaining(["-f", "concat", "-safe", "0"]));
     expect(plan.concatFilePath).toBe("/tmp/project/.ai-edits/render-work/concat.txt");
     expect(plan.outputPath).toBe("/tmp/project/.ai-edits/preview/output.mp4");
+  });
+
+  it("preserves visual timeline gaps as black silent segments", () => {
+    const plan = buildFfmpegRenderPlan(timelineWithVisualGap(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+
+    expect(plan.steps).toHaveLength(4);
+    expect(plan.steps[1]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/gap-001.mp4",
+    });
+    expect(plan.steps[1].args).toEqual(
+      expect.arrayContaining([
+        "-f",
+        "lavfi",
+        "-t",
+        "1",
+        "-i",
+        "color=c=black:s=1080x1920:r=30",
+        "-i",
+        "anullsrc=channel_layout=stereo:sample_rate=48000",
+      ]),
+    );
+    expect(plan.steps[2]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/segment-002.mp4",
+    });
+    expect(plan.concatFileContent).toContain("segment-000.mp4");
+    expect(plan.concatFileContent).toContain("gap-001.mp4");
+    expect(plan.concatFileContent).toContain("segment-002.mp4");
+  });
+
+  it("preserves tail visual gaps through the declared timeline duration", () => {
+    const plan = buildFfmpegRenderPlan(timelineWithTailVisualGap(), {
+      mediaRoot: "/tmp/project",
+      workDir: "/tmp/project/.ai-edits/render-work",
+      outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+    });
+
+    expect(plan.steps).toHaveLength(4);
+    expect(plan.steps[2]).toMatchObject({
+      command: "ffmpeg",
+      outputPath: "/tmp/project/.ai-edits/render-work/gap-002.mp4",
+    });
+    expect(plan.steps[2].args).toEqual(expect.arrayContaining(["-t", "1"]));
+    expect(plan.concatFileContent).toContain("gap-002.mp4");
+  });
+
+  it("rejects overlapping visual timeline items", () => {
+    expect(() =>
+      buildFfmpegRenderPlan(timelineWithVisualOverlap(), {
+        mediaRoot: "/tmp/project",
+        workDir: "/tmp/project/.ai-edits/render-work",
+        outputPath: "/tmp/project/.ai-edits/preview/output.mp4",
+      }),
+    ).toThrow("visual items on the primary track must not overlap");
   });
 
   it("uses silent fallback audio for video assets known to have no source audio", () => {

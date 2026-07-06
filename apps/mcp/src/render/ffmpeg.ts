@@ -75,8 +75,21 @@ export function buildFfmpegRenderPlan(
     "setsar=1",
   ].join(",");
 
-  const steps = visualItems.map((item, index) => {
-    const segmentPath = join(workDir, `segment-${String(index).padStart(3, "0")}.mp4`);
+  const steps: FfmpegCommandStep[] = [];
+  let visualCursor = 0;
+  let visualSegmentIndex = 0;
+  for (const item of visualItems) {
+    if (item.start < visualCursor) {
+      throw new FfmpegRenderError("visual items on the primary track must not overlap");
+    }
+    if (item.start > visualCursor) {
+      const gapPath = join(workDir, `gap-${String(visualSegmentIndex).padStart(3, "0")}.mp4`);
+      steps.push(buildGapSegmentStep(gapPath, item.start - visualCursor, timeline));
+      visualSegmentIndex += 1;
+      visualCursor = item.start;
+    }
+
+    const segmentPath = join(workDir, `segment-${String(visualSegmentIndex).padStart(3, "0")}.mp4`);
     const inputPath = resolve(mediaRoot, item.assetPath);
     assertInside(mediaRoot, inputPath, `asset path escapes mediaRoot: ${item.assetPath}`);
     const inputArgs =
@@ -96,7 +109,7 @@ export function buildFfmpegRenderPlan(
         ];
     const audioMapArgs = usesSourceAudio ? ["-map", "0:a:0"] : ["-map", "1:a:0"];
 
-    return {
+    steps.push({
       command: "ffmpeg" as const,
       outputPath: segmentPath,
       args: [
@@ -121,8 +134,14 @@ export function buildFfmpegRenderPlan(
         "-shortest",
         segmentPath,
       ],
-    };
-  });
+    });
+    visualSegmentIndex += 1;
+    visualCursor = item.start + item.duration;
+  }
+  if (timeline.durationSeconds > visualCursor) {
+    const gapPath = join(workDir, `gap-${String(visualSegmentIndex).padStart(3, "0")}.mp4`);
+    steps.push(buildGapSegmentStep(gapPath, timeline.durationSeconds - visualCursor, timeline));
+  }
 
   const concatFilePath = join(workDir, "concat.txt");
   const concatFileContent =
@@ -259,6 +278,42 @@ function explicitAudioItems(timeline: ImportedTimeline): ImportedTimelineItem[] 
 
 function subtitleItems(timeline: ImportedTimeline): ImportedTimelineSubtitle[] {
   return [...timeline.subtitles].sort((left, right) => left.start - right.start || left.id.localeCompare(right.id));
+}
+
+function buildGapSegmentStep(outputPath: string, duration: number, timeline: ImportedTimeline): FfmpegCommandStep {
+  return {
+    command: "ffmpeg",
+    outputPath,
+    args: [
+      "-y",
+      "-f",
+      "lavfi",
+      "-t",
+      formatSeconds(duration),
+      "-i",
+      `color=c=black:s=${timeline.width}x${timeline.height}:r=${timeline.fps}`,
+      "-f",
+      "lavfi",
+      "-t",
+      formatSeconds(duration),
+      "-i",
+      "anullsrc=channel_layout=stereo:sample_rate=48000",
+      "-map",
+      "0:v:0",
+      "-map",
+      "1:a:0",
+      "-c:v",
+      "libx264",
+      "-preset",
+      "veryfast",
+      "-pix_fmt",
+      "yuv420p",
+      "-c:a",
+      "aac",
+      "-shortest",
+      outputPath,
+    ],
+  };
 }
 
 function buildSrtFileContent(subtitles: ImportedTimelineSubtitle[]): string {
